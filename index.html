@@ -73,7 +73,8 @@
         </div>
         <div class="header-btns">
             <button class="icon-btn" onclick="exportCSV()" title="CSV出力">📥</button>
-            <button class="icon-btn" onclick="openSettings()" title="設定">⚙️</button>
+            <!-- 確実に動くよう直接onclickを設定 -->
+            <button class="icon-btn" onclick="alert('設定ボタンが押されました！'); document.getElementById('settings-modal').style.display='flex';" title="設定">⚙️</button>
         </div>
     </header>
 
@@ -166,7 +167,7 @@
                 <p style="font-size: 0.7rem; color: var(--text-light); margin-top: 4px;">Google AI Studioで取得したキーを入力してください。</p>
             </div>
             <button onclick="saveSettings()">保存する</button>
-            <button class="secondary" onclick="closeSettings()" style="margin-top: 6px;">閉じる</button>
+            <button class="secondary" onclick="document.getElementById('settings-modal').style.display='none';" style="margin-top: 6px;">閉じる</button>
         </div>
     </div>
 
@@ -186,13 +187,11 @@
         renderHistory();
     };
 
-    function openSettings() { document.getElementById('settings-modal').style.display = 'flex'; }
-    function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; }
     function saveSettings() {
         const key = document.getElementById('api-key-input').value.trim();
         localStorage.setItem('gemini_api_key', key);
         alert('APIキーを保存しました！');
-        closeSettings();
+        document.getElementById('settings-modal').style.display = 'none';
     }
 
     function previewImage(event) {
@@ -240,7 +239,7 @@
         const apiKey = localStorage.getItem('gemini_api_key');
         if (!apiKey) {
             alert('右上⚙️ボタンから Gemini APIキーを設定してください。');
-            openSettings();
+            document.getElementById('settings-modal').style.display = 'flex';
             return;
         }
 

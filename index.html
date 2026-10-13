@@ -76,8 +76,8 @@
             </div>
         </div>
         <div class="header-btns">
-            <button class="icon-btn" onclick="exportCSV()" title="CSV出力">📥</button>
-            <button class="icon-btn" onclick="document.getElementById('settings-modal').style.display='flex';" title="設定">⚙️</button>
+            <button class="icon-btn" id="btn-export" title="CSV出力">📥</button>
+            <button class="icon-btn" id="btn-settings-open" title="設定">⚙️</button>
         </div>
     </header>
 
@@ -120,17 +120,17 @@
                 <input type="number" id="input-dia" placeholder="108">
             </div>
         </div>
-        <button onclick="saveHealthData()">測定データを保存</button>
+        <button id="btn-save-health">測定データを保存</button>
     </div>
 
     <!-- 食事記録（選択式：テキスト or 写真） -->
     <div class="card">
         <h2>🍱 食事の記録（AI分析）</h2>
         
-        <!-- モード切替タブ（onclickで確実に関数を呼び出し） -->
+        <!-- モード切替タブ -->
         <div class="mode-tabs">
-            <div id="tab-text" class="mode-tab active" onclick="switchInputMode('text')">📝 1. テキストで入力</div>
-            <div id="tab-photo" class="mode-tab" onclick="switchInputMode('photo')">📸 2. 写真＋コメント</div>
+            <div id="tab-text" class="mode-tab active">📝 1. テキストで入力</div>
+            <div id="tab-photo" class="mode-tab">📸 2. 写真＋コメント</div>
         </div>
 
         <!-- 1. テキスト入力エリア -->
@@ -143,7 +143,7 @@
         <div id="area-photo" style="margin-bottom: 10px; display: none;">
             <div style="margin-bottom: 8px;">
                 <label>食事の写真（撮影またはライブラリから選択）</label>
-                <input type="file" id="meal-image" accept="image/*" onchange="previewImage(event)">
+                <input type="file" id="meal-image" accept="image/*">
                 <div id="preview-container">
                     <img id="preview-img" src="" alt="プレビュー">
                 </div>
@@ -154,14 +154,14 @@
             </div>
         </div>
 
-        <button class="ai-btn" onclick="analyzeMealAI()">✨ AI分析してカロリー・塩分を記録</button>
+        <button class="ai-btn" id="btn-analyze-meal">✨ AI分析してカロリー・塩分を記録</button>
         <div id="ai-loading" class="loading">🤖 AIが食事を解析中...数秒お待ちください</div>
     </div>
 
-    <!-- グラフ表示カード（復活） -->
+    <!-- グラフ表示カード -->
     <div class="card">
         <h2>📈 グラフ推移</h2>
-        <select id="chart-selector" onchange="switchChart()" style="margin-bottom: 10px;">
+        <select id="chart-selector" style="margin-bottom: 10px;">
             <option value="weight">体重の推移</option>
             <option value="bp">血圧の推移</option>
             <option value="nutrition">栄養素（カロリー・塩分）の推移</option>
@@ -186,8 +186,8 @@
                 <input type="password" id="api-key-input" placeholder="AIzaSy...">
                 <p style="font-size: 0.7rem; color: var(--text-light); margin-top: 4px;">Google AI Studioで取得したキーを入力してください。</p>
             </div>
-            <button onclick="saveSettings()">保存する</button>
-            <button class="secondary" onclick="document.getElementById('settings-modal').style.display='none';" style="margin-top: 6px;">閉じる</button>
+            <button id="btn-settings-save">保存する</button>
+            <button class="secondary" id="btn-settings-close" style="margin-top: 6px;">閉じる</button>
         </div>
     </div>
 
@@ -198,7 +198,8 @@
     let base64Image = null;
     let currentMode = 'text';
 
-    window.onload = function() {
+    // ページ読み込み時にすべてのイベントリスナーを安全に一括登録
+    document.addEventListener('DOMContentLoaded', function() {
         const savedKey = localStorage.getItem('gemini_api_key');
         if (savedKey) {
             document.getElementById('api-key-input').value = savedKey;
@@ -206,9 +207,36 @@
         updateDashboard();
         updateChart('weight');
         renderHistory();
-    };
 
-    // タブ切替関数
+        // タブ切替イベント
+        document.getElementById('tab-text').addEventListener('click', function() {
+            switchInputMode('text');
+        });
+        document.getElementById('tab-photo').addEventListener('click', function() {
+            switchInputMode('photo');
+        });
+
+        // 各種ボタンのイベント
+        document.getElementById('btn-export').addEventListener('click', exportCSV);
+        document.getElementById('btn-settings-open').addEventListener('click', function() {
+            document.getElementById('settings-modal').style.display = 'flex';
+        });
+        document.getElementById('btn-settings-save').addEventListener('click', saveSettings);
+        document.getElementById('btn-settings-close').addEventListener('click', function() {
+            document.getElementById('settings-modal').style.display = 'none';
+        });
+        document.getElementById('btn-save-health').addEventListener('click', saveHealthData);
+        document.getElementById('btn-analyze-meal').addEventListener('click', analyzeMealAI);
+
+        // 画像選択イベント
+        document.getElementById('meal-image').addEventListener('change', previewImage);
+
+        // グラフセレクトボックス変更イベント
+        document.getElementById('chart-selector').addEventListener('change', function(e) {
+            updateChart(e.target.value);
+        });
+    });
+
     function switchInputMode(mode) {
         currentMode = mode;
         const tabText = document.getElementById('tab-text');
@@ -390,10 +418,6 @@
                 document.getElementById('dash-diff').innerText = `目標 70.8 kg (${diff > 0 ? '+'+diff : diff}kg)`;
             }
         }
-    }
-
-    function switchChart() {
-        updateChart(document.getElementById('chart-selector').value);
     }
 
     function updateChart(mode) {

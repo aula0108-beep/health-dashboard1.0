@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>減量＆血圧コントロールAI</title>
+    <!-- Chart.js ライブラリの読み込み -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary: #2563eb;
@@ -49,7 +51,7 @@
         button.ai-btn { background: linear-gradient(135deg, #6366f1, #a855f7); }
 
         .mode-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
-        .mode-tab { flex: 1; padding: 8px; text-align: center; background: #0f172a; border: 1px solid var(--border); border-radius: 8px; font-size: 0.8rem; color: var(--text-light); cursor: pointer; font-weight: bold; }
+        .mode-tab { flex: 1; padding: 10px; text-align: center; background: #0f172a; border: 1px solid var(--border); border-radius: 8px; font-size: 0.8rem; color: var(--text-light); cursor: pointer; font-weight: bold; user-select: none; }
         .mode-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
 
         .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
@@ -125,16 +127,19 @@
     <div class="card">
         <h2>🍱 食事の記録（AI分析）</h2>
         
+        <!-- モード切替タブ（onclickで確実に関数を呼び出し） -->
         <div class="mode-tabs">
             <div id="tab-text" class="mode-tab active" onclick="switchInputMode('text')">📝 1. テキストで入力</div>
             <div id="tab-photo" class="mode-tab" onclick="switchInputMode('photo')">📸 2. 写真＋コメント</div>
         </div>
 
+        <!-- 1. テキスト入力エリア -->
         <div id="area-text" style="margin-bottom: 10px;">
             <label>食べたものをざっくり入力</label>
             <input type="text" id="meal-text" placeholder="例：カツ丼、コンビニのサンドイッチとサラダ 等">
         </div>
 
+        <!-- 2. 写真＆コメント入力エリア（初期は非表示） -->
         <div id="area-photo" style="margin-bottom: 10px; display: none;">
             <div style="margin-bottom: 8px;">
                 <label>食事の写真（撮影またはライブラリから選択）</label>
@@ -151,6 +156,17 @@
 
         <button class="ai-btn" onclick="analyzeMealAI()">✨ AI分析してカロリー・塩分を記録</button>
         <div id="ai-loading" class="loading">🤖 AIが食事を解析中...数秒お待ちください</div>
+    </div>
+
+    <!-- グラフ表示カード（復活） -->
+    <div class="card">
+        <h2>📈 グラフ推移</h2>
+        <select id="chart-selector" onchange="switchChart()" style="margin-bottom: 10px;">
+            <option value="weight">体重の推移</option>
+            <option value="bp">血圧の推移</option>
+            <option value="nutrition">栄養素（カロリー・塩分）の推移</option>
+        </select>
+        <canvas id="mainChart"></canvas>
     </div>
 
     <!-- 履歴 -->
@@ -178,6 +194,7 @@
 <script>
     let healthData = JSON.parse(localStorage.getItem('health_data') || '[]');
     let mealData = JSON.parse(localStorage.getItem('meal_data') || '[]');
+    let chartInstance = null;
     let base64Image = null;
     let currentMode = 'text';
 
@@ -187,9 +204,11 @@
             document.getElementById('api-key-input').value = savedKey;
         }
         updateDashboard();
+        updateChart('weight');
         renderHistory();
     };
 
+    // タブ切替関数
     function switchInputMode(mode) {
         currentMode = mode;
         const tabText = document.getElementById('tab-text');
@@ -253,6 +272,7 @@
         document.getElementById('input-dia').value = '';
         
         updateDashboard();
+        updateChart(document.getElementById('chart-selector').value);
         renderHistory();
         alert('測定データを保存しました！');
     }
@@ -346,6 +366,7 @@
             document.getElementById('preview-container').style.display = 'none';
             base64Image = null;
 
+            updateChart(document.getElementById('chart-selector').value);
             renderHistory();
             alert(`【AI分析完了】\n${result.name}\n🔥 ${result.calories} kcal | 🧂 塩分 ${result.salt}g`);
 
@@ -369,6 +390,39 @@
                 document.getElementById('dash-diff').innerText = `目標 70.8 kg (${diff > 0 ? '+'+diff : diff}kg)`;
             }
         }
+    }
+
+    function switchChart() {
+        updateChart(document.getElementById('chart-selector').value);
+    }
+
+    function updateChart(mode) {
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+
+        let labels = [], datasets = [];
+        if (mode === 'weight') {
+            labels = healthData.map(d => d.date);
+            datasets = [{ label: '体重 (kg)', data: healthData.map(d => d.weight), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)', fill: true, tension: 0.2 }];
+        } else if (mode === 'bp') {
+            labels = healthData.map(d => d.date);
+            datasets = [
+                { label: '収縮期', data: healthData.map(d => d.sys), borderColor: '#dc2626', tension: 0.2 },
+                { label: '拡張期', data: healthData.map(d => d.dia), borderColor: '#d97706', tension: 0.2 }
+            ];
+        } else if (mode === 'nutrition') {
+            labels = mealData.map(d => d.date);
+            datasets = [
+                { label: '塩分 (g)', data: mealData.map(d => d.salt), borderColor: '#dc2626', yAxisID: 'y' },
+                { label: 'カロリー (kcal÷100)', data: mealData.map(d => d.calories ? d.calories/100 : 0), borderColor: '#16a34a', yAxisID: 'y1' }
+            ];
+        }
+
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: { labels: labels, datasets: datasets },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
     }
 
     function renderHistory() {

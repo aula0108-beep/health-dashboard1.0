@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>減量＆血圧コントロールAI</title>
-    <!-- Chart.js ライブラリの読み込み -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -76,8 +75,8 @@
             </div>
         </div>
         <div class="header-btns">
-            <button class="icon-btn" id="btn-export" title="CSV出力">📥</button>
-            <button class="icon-btn" id="btn-settings-open" title="設定">⚙️</button>
+            <button class="icon-btn" onclick="exportCSV()" title="CSV出力">📥</button>
+            <button class="icon-btn" onclick="openSettings()" title="設定">⚙️</button>
         </div>
     </header>
 
@@ -120,30 +119,27 @@
                 <input type="number" id="input-dia" placeholder="108">
             </div>
         </div>
-        <button id="btn-save-health">測定データを保存</button>
+        <button onclick="saveHealthData()">測定データを保存</button>
     </div>
 
     <!-- 食事記録（選択式：テキスト or 写真） -->
     <div class="card">
         <h2>🍱 食事の記録（AI分析）</h2>
         
-        <!-- モード切替タブ -->
         <div class="mode-tabs">
-            <div id="tab-text" class="mode-tab active">📝 1. テキストで入力</div>
-            <div id="tab-photo" class="mode-tab">📸 2. 写真＋コメント</div>
+            <div id="tab-text" class="mode-tab active" onclick="switchInputMode('text')">📝 1. テキストで入力</div>
+            <div id="tab-photo" class="mode-tab" onclick="switchInputMode('photo')">📸 2. 写真＋コメント</div>
         </div>
 
-        <!-- 1. テキスト入力エリア -->
         <div id="area-text" style="margin-bottom: 10px;">
             <label>食べたものをざっくり入力</label>
             <input type="text" id="meal-text" placeholder="例：カツ丼、コンビニのサンドイッチとサラダ 等">
         </div>
 
-        <!-- 2. 写真＆コメント入力エリア（初期は非表示） -->
         <div id="area-photo" style="margin-bottom: 10px; display: none;">
             <div style="margin-bottom: 8px;">
                 <label>食事の写真（撮影またはライブラリから選択）</label>
-                <input type="file" id="meal-image" accept="image/*">
+                <input type="file" id="meal-image" accept="image/*" onchange="previewImage(event)">
                 <div id="preview-container">
                     <img id="preview-img" src="" alt="プレビュー">
                 </div>
@@ -154,14 +150,14 @@
             </div>
         </div>
 
-        <button class="ai-btn" id="btn-analyze-meal">✨ AI分析してカロリー・塩分を記録</button>
+        <button class="ai-btn" onclick="analyzeMealAI()">✨ AI分析してカロリー・塩分を記録</button>
         <div id="ai-loading" class="loading">🤖 AIが食事を解析中...数秒お待ちください</div>
     </div>
 
     <!-- グラフ表示カード -->
     <div class="card">
         <h2>📈 グラフ推移</h2>
-        <select id="chart-selector" style="margin-bottom: 10px;">
+        <select id="chart-selector" onchange="switchChart()" style="margin-bottom: 10px;">
             <option value="weight">体重の推移</option>
             <option value="bp">血圧の推移</option>
             <option value="nutrition">栄養素（カロリー・塩分）の推移</option>
@@ -186,8 +182,8 @@
                 <input type="password" id="api-key-input" placeholder="AIzaSy...">
                 <p style="font-size: 0.7rem; color: var(--text-light); margin-top: 4px;">Google AI Studioで取得したキーを入力してください。</p>
             </div>
-            <button id="btn-settings-save">保存する</button>
-            <button class="secondary" id="btn-settings-close" style="margin-top: 6px;">閉じる</button>
+            <button onclick="saveSettings()">保存する</button>
+            <button class="secondary" onclick="closeSettings()" style="margin-top: 6px;">閉じる</button>
         </div>
     </div>
 
@@ -198,8 +194,7 @@
     let base64Image = null;
     let currentMode = 'text';
 
-    // ページ読み込み時にすべてのイベントリスナーを安全に一括登録
-    document.addEventListener('DOMContentLoaded', function() {
+    window.onload = function() {
         const savedKey = localStorage.getItem('gemini_api_key');
         if (savedKey) {
             document.getElementById('api-key-input').value = savedKey;
@@ -207,35 +202,15 @@
         updateDashboard();
         updateChart('weight');
         renderHistory();
+    };
 
-        // タブ切替イベント
-        document.getElementById('tab-text').addEventListener('click', function() {
-            switchInputMode('text');
-        });
-        document.getElementById('tab-photo').addEventListener('click', function() {
-            switchInputMode('photo');
-        });
+    function openSettings() {
+        document.getElementById('settings-modal').style.display = 'flex';
+    }
 
-        // 各種ボタンのイベント
-        document.getElementById('btn-export').addEventListener('click', exportCSV);
-        document.getElementById('btn-settings-open').addEventListener('click', function() {
-            document.getElementById('settings-modal').style.display = 'flex';
-        });
-        document.getElementById('btn-settings-save').addEventListener('click', saveSettings);
-        document.getElementById('btn-settings-close').addEventListener('click', function() {
-            document.getElementById('settings-modal').style.display = 'none';
-        });
-        document.getElementById('btn-save-health').addEventListener('click', saveHealthData);
-        document.getElementById('btn-analyze-meal').addEventListener('click', analyzeMealAI);
-
-        // 画像選択イベント
-        document.getElementById('meal-image').addEventListener('change', previewImage);
-
-        // グラフセレクトボックス変更イベント
-        document.getElementById('chart-selector').addEventListener('change', function(e) {
-            updateChart(e.target.value);
-        });
-    });
+    function closeSettings() {
+        document.getElementById('settings-modal').style.display = 'none';
+    }
 
     function switchInputMode(mode) {
         currentMode = mode;
@@ -261,7 +236,7 @@
         const key = document.getElementById('api-key-input').value.trim();
         localStorage.setItem('gemini_api_key', key);
         alert('APIキーを保存しました！');
-        document.getElementById('settings-modal').style.display = 'none';
+        closeSettings();
     }
 
     function previewImage(event) {
@@ -310,7 +285,7 @@
             const apiKey = localStorage.getItem('gemini_api_key');
             if (!apiKey) {
                 alert('⚠️ APIキーが未設定です。右上⚙️ボタンから Gemini APIキーを設定してください。');
-                document.getElementById('settings-modal').style.display = 'flex';
+                openSettings();
                 return;
             }
 
@@ -420,6 +395,10 @@
         }
     }
 
+    function switchChart() {
+        updateChart(document.getElementById('chart-selector').value);
+    }
+
     function updateChart(mode) {
         const ctx = document.getElementById('mainChart').getContext('2d');
         if (chartInstance) chartInstance.destroy();
@@ -435,58 +414,4 @@
                 { label: '拡張期', data: healthData.map(d => d.dia), borderColor: '#d97706', tension: 0.2 }
             ];
         } else if (mode === 'nutrition') {
-            labels = mealData.map(d => d.date);
-            datasets = [
-                { label: '塩分 (g)', data: mealData.map(d => d.salt), borderColor: '#dc2626', yAxisID: 'y' },
-                { label: 'カロリー (kcal÷100)', data: mealData.map(d => d.calories ? d.calories/100 : 0), borderColor: '#16a34a', yAxisID: 'y1' }
-            ];
-        }
-
-        chartInstance = new Chart(ctx, {
-            type: 'line',
-            data: { labels: labels, datasets: datasets },
-            options: { responsive: true, scales: { y: { beginAtZero: true } } }
-        });
-    }
-
-    function renderHistory() {
-        const container = document.getElementById('history-list');
-        const allData = [...healthData.map(d=>({...d, category:'health'})), ...mealData.map(d=>({...d, category:'meal'}))];
-        
-        if (allData.length === 0) {
-            container.innerHTML = '<p style="font-size: 0.8rem; color: var(--text-light);">まだ記録がありません</p>';
-            return;
-        }
-
-        allData.reverse();
-        let html = '';
-        allData.slice(0, 10).forEach(item => {
-            if (item.category === 'health') {
-                html += `<div class="history-item">
-                    <span>📅 ${item.date} [測定]</span>
-                    <span>体重: <b>${item.weight ? item.weight+'kg' : '-'}</b> / 血圧: <b>${item.sys && item.dia ? item.sys+'/'+item.dia : '-'}</b></span>
-                </div>`;
-            } else {
-                html += `<div class="history-item">
-                    <span>📅 ${item.date} [食事: ${item.name}]</span>
-                    <span style="color:#60a5fa;">🔥${item.calories}kcal 🧂塩分${item.salt}g</span>
-                </div>`;
-            }
-        });
-        container.innerHTML = html;
-    }
-
-    function exportCSV() {
-        let csv = '日時,種別,体重(kg),収縮期,拡張期,食事メニュー,カロリー,糖質(g),塩分(g)\n';
-        healthData.forEach(d => { csv += `"${d.date}","測定","${d.weight||''}","${d.sys||''}","${d.dia||''}","","","",""\n`; });
-        mealData.forEach(d => { csv += `"${d.date}","食事","","","","${d.name||''}","${d.calories||''}","${d.carbs||''}","${d.salt||''}"\n`; });
-
-        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = 'health_data.csv'; a.click();
-    }
-</script>
-
-</body>
-</html>
+            labels = meal

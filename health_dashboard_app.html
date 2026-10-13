@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="ja" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ヘルスケア＆血圧・体重デトックスダッシュボード</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                        },
+                        danger: {
+                            500: '#ef4444',
+                            600: '#dc2626',
+                        },
+                        warning: {
+                            500: '#f59e0b',
+                        },
+                        success: {
+                            500: '#10b981',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="h-full text-slate-800 flex flex-col min-h-screen">
+
+    <header class="bg-slate-900 text-white sticky top-0 z-50 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-brand-500 p-2 rounded-xl text-white">
+                    <i class="fa-solid me-0 fa-heart-pulse text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">減量＆血圧コントロール AI</h1>
+                    <p class="text-xs text-slate-400">目標: 4ヶ月で -10kg & 拡張期 100mmHg 未満</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button onclick="exportDataCSV()" class="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg text-xs flex items-center gap-1 transition">
+                    <i class="fa-solid fa-file-csv text-sm"></i>
+                    <span class="hidden sm:inline">CSV書き出し</span>
+                </button>
+                <label class="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg text-xs flex items-center gap-1 cursor-pointer transition">
+                    <i class="fa-solid fa-file-import text-sm"></i>
+                    <span class="hidden sm:inline">CSV読み込み</span>
+                    <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="importDataCSV(event)">
+                </label>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Top Summary Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="glass-card p-4 rounded-2xl shadow-sm border-l-4 border-brand-500">
+                <div class="text-xs text-slate-500 font-medium">最新 血圧</div>
+                <div class="mt-1 flex items-baseline justify-between">
+                    <span class="text-2xl font-bold tracking-tight" id="stat-latest-bp">--- / ---</span>
+                    <span class="text-xs text-slate-400">mmHg</span>
+                </div>
+                <div id="stat-bp-status" class="mt-1 text-xs font-semibold text-slate-500">読み込み中...</div>
+            </div>
+
+            <div class="glass-card p-4 rounded-2xl shadow-sm border-l-4 border-indigo-500">
+                <div class="text-xs text-slate-500 font-medium">最新 体重</div>
+                <div class="mt-1 flex items-baseline justify-between">
+                    <span class="text-2xl font-bold tracking-tight" id="stat-latest-weight">--.-</span>
+                    <span class="text-xs text-slate-400">kg</span>
+                </div>
+                <div class="mt-1 text-xs text-slate-500">目標: 70.8 kg (-10kg)</div>
+            </div>
+
+            <div class="glass-card p-4 rounded-2xl shadow-sm border-l-4 border-amber-500">
+                <div class="text-xs text-slate-500 font-medium">直近 塩分</div>
+                <div class="mt-1 flex items-baseline justify-between">
+                    <span class="text-2xl font-bold tracking-tight" id="stat-latest-salt">--.-</span>
+                    <span class="text-xs text-slate-400">g / 日</span>
+                </div>
+                <div class="mt-1 text-xs font-medium text-amber-600">目標 6.0g 未満</div>
+            </div>
+
+            <div class="glass-card p-4 rounded-2xl shadow-sm border-l-4 border-emerald-500">
+                <div class="text-xs text-slate-500 font-medium">服薬状況 (スピロノラクトン)</div>
+                <div class="mt-1 flex items-center justify-between">
+                    <span class="text-xl font-bold text-emerald-600" id="stat-med-status">服用完了</span>
+                    <i class="fa-solid fa-pills text-emerald-500 text-2xl"></i>
+                </div>
+                <div class="mt-1 text-xs text-slate-500">25mg / 日 継続中</div>
+            </div>
+        </div>
+
+        <!-- Correlation Analysis Alert Box -->
+        <div class="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden">
+            <div class="absolute -right-10 -bottom-10 opacity-10 text-white text-9xl">
+                <i class="fa-solid fa-brain"></i>
+            </div>
+            <div class="relative z-10 space-y-2">
+                <div class="flex items-center space-x-2">
+                    <span class="bg-amber-500 text-slate-950 text-xs font-bold px-2.5 py-0.5 rounded-full uppercase">AI 相関分析レポート</span>
+                    <span class="text-xs text-slate-400" id="insight-date">リアルタイム診断</span>
+                </div>
+                <h2 class="text-lg font-bold text-slate-100" id="insight-title">塩分・むくみ・拡張期血圧の相関チェック</h2>
+                <p class="text-sm text-slate-300 leading-relaxed" id="insight-body">
+                    データを分析中です...
+                </p>
+            </div>
+        </div>
+
+        <!-- Main Tab / Form & Charts Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <div class="lg:col-span-5 space-y-6">
+                <div class="glass-card p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                        <h2 class="font-bold text-slate-900 flex items-center gap-2">
+                            <i class="fa-solid fa-pen-to-square text-brand-600"></i>
+                            本日のデータ入力・更新
+                        </h2>
+                        <span class="text-xs text-slate-400">自動保存機能付き</span>
+                    </div>
+
+                    <form id="healthForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+                        <!-- Date & Basic Metrics -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">日付</label>
+                                <input type="date" id="input-date" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                            </div>
+                            <div class="flex items-center pt-5">
+                                <label class="inline-flex items-center cursor-pointer space-x-2">
+                                    <input type="checkbox" id="input-med" checked class="w-4 h-4 text-brand-600 rounded focus:ring-brand-500 border-slate-300">
+                                    <span class="text-xs font-medium text-slate-700">利尿剤 25mg 服用</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- BP Inputs -->
+                        <div class="p-3 bg-slate-50 rounded-xl space-y-2 border border-slate-100">
+                            <span class="text-xs font-bold text-slate-700 block">血圧測定値 (mmHg)</span>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs text-slate-500 mb-1">収縮期 (上)</label>
+                                    <input type="number" id="input-bp-sys" placeholder="140" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-500 mb-1">拡張期 (下) <span class="text-red-500 font-semibold">*100目標</span></label>
+                                    <input type="number" id="input-bp-dia" placeholder="95" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Weight & Steps -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">体重 (kg)</label>
+                                <input type="number" step="0.1" id="input-weight" placeholder="80.0" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">歩数 (歩)</label>
+                                <input type="number" id="input-steps" placeholder="8000" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                            </div>
+                        </div>
+
+                        <!-- Meal Entry with AI Calc -->
+                        <div class="p-3 bg-slate-50 rounded-xl space-y-3 border border-slate-100">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-slate-700">食事・栄養の入力</span>
+                                <button type="button" onclick="estimateNutrientsWithAI()" class="px-2.5 py-1 text-xs bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold rounded-lg shadow-sm transition flex items-center gap-1">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> AI栄養試算
+                                </button>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1">本日の食事内容メモ</label>
+                                <textarea id="input-meal-text" rows="2" placeholder="例: 朝 ワンタンスープ、目玉焼き / 昼 豚蒸しポン酢 / 夜 アスパラ炒め、チューハイ" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none"></textarea>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-2">
+                                <div>
+                                    <label class="block text-xs text-slate-500 mb-1">カロリー (kcal)</label>
+                                    <input type="number" id="input-calories" placeholder="1800" class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-500 mb-1">糖質 (g)</label>
+                                    <input type="number" step="0.1" id="input-carbs" placeholder="120" class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-500 mb-1">塩分 (g) <span class="text-red-500 font-semibold">*6.0g制限</span></label>
+                                    <input type="number" step="0.1" id="input-salt" placeholder="6.0" required class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none">
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-floppy-disk"></i>
+                            記録を保存・グラフ更新
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="lg:col-span-7 space-y-6">
+
+                <!-- BP Trend Chart -->
+                <div class="glass-card p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-chart-line text-brand-600"></i>
+                            血圧推移グラフ (目標: 拡張期 100mmHg 未満)
+                        </h3>
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold">100mmHg 警戒ライン</span>
+                    </div>
+                    <div class="relative h-64">
+                        <canvas id="bpChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Weight & Salt Dual Chart Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Weight Trend -->
+                    <div class="glass-card p-4 rounded-2xl shadow-sm border border-slate-200">
+                        <h3 class="font-bold text-slate-900 text-xs mb-2 flex items-center gap-1">
+                            <i class="fa-solid fa-weight-scale text-indigo-500"></i>
+                            体重推移 (目標 -10kg)
+                        </h3>
+                        <div class="relative h-48">
+                            <canvas id="weightChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Salt Intake Bar -->
+                    <div class="glass-card p-4 rounded-2xl shadow-sm border border-slate-200">
+                        <h3 class="font-bold text-slate-900 text-xs mb-2 flex items-center gap-1">
+                            <i class="fa-solid fa-bowl-rice text-amber-500"></i>
+                            日別 塩分摂取量 (上限 6.0g)
+                        </h3>
+                        <div class="relative h-48">
+                            <canvas id="saltChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- History Log Table -->
+        <div class="glass-card p-5 rounded-2xl shadow-sm border border-slate-200">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-table-list text-slate-600"></i>
+                    過去の測定＆食事ログ履歴
+                </h3>
+                <span class="text-xs text-slate-500" id="log-count-badge">0 件</span>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left text-slate-600">
+                    <thead class="text-xs text-slate-700 uppercase bg-slate-100/70">
+                        <tr>
+                            <th class="px-3 py-2 rounded-l-lg">日付</th>
+                            <th class="px-3 py-2">血圧 (上/下)</th>
+                            <th class="px-3 py-2">体重 (kg)</th>
+                            <th class="px-3 py-2">塩分 (g)</th>
+                            <th class="px-3 py-2">カロリー / 糖質</th>
+                            <th class="px-3 py-2">食事内容</th>
+                            <th class="px-3 py-2">服薬</th>
+                            <th class="px-3 py-2 text-right rounded-r-lg">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody" class="divide-y divide-slate-100">
+                        <!-- Dynamic content -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // Default initial datasets based on target metrics
+        const defaultRecords = [
+            {
+                date: '2026-10-10',
+                bpSys: 158,
+                bpDia: 112,
+                weight: 81.5,
+                steps: 7500,
+                medication: true,
+                mealText: '和食、醤油炒め、味噌汁',
+                calories: 1950,
+                carbs: 160,
+                salt: 9.8
+            },
+            {
+                date: '2026-10-11',
+                bpSys: 154,
+                bpDia: 110,
+                weight: 80.8,
+                steps: 8200,
+                medication: true,
+                mealText: 'おにぎり、ウインナー、ハイボール',
+                calories: 2100,
+                carbs: 175,
+                salt: 10.2
+            },
+            {
+                date: '2026-10-12',
+                bpSys: 154,
+                bpDia: 110,
+                weight: 80.8,
+                steps: 8000,
+                medication: true,
+                mealText: 'ワンタンスープ、ウインナーご飯、カットキャベツ豚蒸し、チューハイ4杯、おにぎり',
+                calories: 2150,
+                carbs: 150,
+                salt: 8.5
+            },
+            {
+                date: '2026-10-13',
+                bpSys: 147,
+                bpDia: 108,
+                weight: 80.2,
+                steps: 8500,
+                medication: true,
+                mealText: '朝 ウインナー2本・若菜おにぎり / デトックス重視',
+                calories: 1650,
+                carbs: 110,
+                salt: 5.2
+            }
+        ];
+
+        let records = [];
+        let bpChart = null;
+        let weightChart = null;
+        let saltChart = null;
+
+        // Initialize Application State
+        window.onload = function() {
+            const saved = localStorage.getItem('health_dashboard_records');
+            if (saved) {
+                try {
+                    records = JSON.parse(saved);
+                } catch(e) {
+                    records = [...defaultRecords];
+                }
+            } else {
+                records = [...defaultRecords];
+                saveRecords();
+            }
+
+            // Set default date to today
+            const todayStr = new Date().toISOString().split('T')[0];
+            document.getElementById('input-date').value = todayStr;
+
+            initCharts();
+            updateAllViews();
+        };
+
+        function saveRecords() {
+            localStorage.setItem('health_dashboard_records', JSON.stringify(records));
+        }
+
+        // --- Chart Initialization ---
+        function initCharts() {
+            // Blood Pressure Chart
+            const ctxBP = document.getElementById('bpChart').getContext('2d');
+            bpChart = new Chart(ctxBP, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: '収縮期 (上)',
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            data: [],
+                            tension: 0.3,
+                            fill: true
+                        },
+                        {
+                            label: '拡張期 (下)',
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            data: [],
+                            tension: 0.3,
+                            fill: true
+                        },
+                        {
+                            label: '拡張期 目標線 (100)',
+                            borderColor: '#f59e0b',
+                            borderDash: [6, 6],
+                            pointRadius: 0,
+                            data: [],
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } }
+                    },
+                    scales: {
+                        y: { min: 60, max: 180, grid: { color: 'rgba(226, 232, 240, 0.6)' } }
+                    }
+                }
+            });
+
+            // Weight Chart
+            const ctxWeight = document.getElementById('weightChart').getContext('2d');
+            weightChart = new Chart(ctxWeight, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: '体重 (kg)',
+                        borderColor: '#6366f1',
+                        backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                        data: [],
+                        tension: 0.2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { grid: { color: 'rgba(226, 232, 240, 0.6)' } } }
+                }
+            });
+
+            // Salt Chart
+            const ctxSalt = document.getElementById('saltChart').getContext('2d');
+            saltChart = new Chart(ctxSalt, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: '塩分 (g)',
+                            backgroundColor: [],
+                            data: [],
+                            borderRadius: 6
+                        },
+                        {
+                            type: 'line',
+                            label: '上限 6.0g',
+                            borderColor: '#dc2626',
+                            borderDash: [4, 4],
+                            pointRadius: 0,
+                            data: [],
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { min: 0, max: 15, grid: { color: 'rgba(226, 232, 240, 0.6)' } } }
+                }
+            });
+        }
+
+        // --- View & Data Synchronizer ---
+        function updateAllViews() {
+            // Sort records chronologically
+            records.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            // Populate Top Summary Cards
+            if (records.length > 0) {
+                const latest = records[records.length - 1];
+                document.getElementById('stat-latest-bp').innerText = `${latest.bpSys} / ${latest.bpDia}`;
+                
+                const bpStatus = document.getElementById('stat-bp-status');
+                if (latest.bpDia >= 100) {
+                    bpStatus.innerText = '⚠️ 拡張期 100mmHg 超え (警戒水域)';
+                    bpStatus.className = 'mt-1 text-xs font-semibold text-red-600';
+                } else {
+                    bpStatus.innerText = '✅ 目標 100mmHg 未満クリア';
+                    bpStatus.className = 'mt-1 text-xs font-semibold text-emerald-600';
+                }
+
+                document.getElementById('stat-latest-weight').innerText = latest.weight.toFixed(1);
+                document.getElementById('stat-latest-salt').innerText = latest.salt.toFixed(1);
+
+                const medStatus = document.getElementById('stat-med-status');
+                if (latest.medication) {
+                    medStatus.innerText = '服用完了';
+                    medStatus.className = 'text-xl font-bold text-emerald-600';
+                } else {
+                    medStatus.innerText = '未服用';
+                    medStatus.className = 'text-xl font-bold text-amber-600';
+                }
+            }
+
+            // Update AI Insight Engine
+            generateCorrelationInsight();
+
+            // Update Charts Data
+            const labels = records.map(r => r.date.slice(5)); // 'MM-DD'
+            const sysData = records.map(r => r.bpSys);
+            const diaData = records.map(r => r.bpDia);
+            const targetBp100 = records.map(() => 100);
+
+            bpChart.data.labels = labels;
+            bpChart.data.datasets[0].data = sysData;
+            bpChart.data.datasets[1].data = diaData;
+            bpChart.data.datasets[2].data = targetBp100;
+            bpChart.update();
+
+            const weightData = records.map(r => r.weight);
+            weightChart.data.labels = labels;
+            weightChart.data.datasets[0].data = weightData;
+            weightChart.update();
+
+            const saltData = records.map(r => r.salt);
+            const saltColors = saltData.map(s => s >= 6.0 ? '#ef4444' : '#10b981');
+            const targetSalt6 = records.map(() => 6.0);
+
+            saltChart.data.labels = labels;
+            saltChart.data.datasets[0].data = saltData;
+            saltChart.data.datasets[0].backgroundColor = saltColors;
+            saltChart.data.datasets[1].data = targetSalt6;
+            saltChart.update();
+
+            // Render Log Table
+            renderTable();
+        }
+
+        // --- AI Correlation Analysis Algorithm ---
+        function generateCorrelationInsight() {
+            if (records.length < 2) {
+                document.getElementById('insight-body').innerText = '分析を行うには、少なくとも2日分以上のデータを登録してください。';
+                return;
+            }
+
+            const latest = records[records.length - 1];
+            const prev = records[records.length - 2];
+
+            const saltHigh = latest.salt >= 6.0;
+            const weightSpike = (latest.weight - prev.weight) >= 0.5;
+            const diaHigh = latest.bpDia >= 100;
+
+            let title = '';
+            let body = '';
+
+            if (saltHigh && weightSpike && diaHigh) {
+                title = '🚨 塩分過剰に伴う強烈なむくみ＆拡張期血圧の高止まりを検出';
+                body = `前日からの体重増加(+${(latest.weight - prev.weight).toFixed(1)}kg)は脂肪ではなく、塩分(${latest.salt}g)とアルコール補給による強力な水分滞留（むくみ）が原因です。この滞留水分が血管内圧を押し上げ、拡張期(${latest.bpDia}mmHg)が高止まりしています。本日は「完全無塩(0g)・無糖水分2.5L」で強制デトックスを行ってください！`;
+            } else if (diaHigh) {
+                title = '⚠️ 拡張期血圧が100mmHg超えの危険水域にあります';
+                body = `直近の拡張期血圧は ${latest.bpDia} mmHg です。血管への負担が大きい状態が続いています。スピロノラクトンの服用を確実に行い、減塩と水分補給で排泄能力を高めましょう。`;
+            } else if (!diaHigh && latest.weight < prev.weight) {
+                title = '✨ 理想的なデトックス＆降圧トレンドを形成中！';
+                body = `拡張期血圧が ${latest.bpDia} mmHg まで落ち着き、体重も順調に減少(-${(prev.weight - latest.weight).toFixed(1)}kg)しています。カリウム豊富な食材（納豆・ほうれん草）や適度なウォーキングを維持しましょう！`;
+            } else {
+                title = '📊 順調なモニタリングを継続しています';
+                body = `目標の「拡張期100mmHg未満」と「70kg台への復帰」に向けて、1日の塩分上限6.0g未満を徹底してコントロールを続けましょう。`;
+            }
+
+            document.getElementById('insight-title').innerText = title;
+            document.getElementById('insight-body').innerText = body;
+        }
+
+        // --- Form Handler ---
+        function handleFormSubmit(event) {
+            event.preventDefault();
+
+            const date = document.getElementById('input-date').value;
+            const bpSys = parseFloat(document.getElementById('input-bp-sys').value);
+            const bpDia = parseFloat(document.getElementById('input-bp-dia').value);
+            const weight = parseFloat(document.getElementById('input-weight').value);
+            const steps = parseInt(document.getElementById('input-steps').value) || 0;
+            const medication = document.getElementById('input-med').checked;
+            const mealText = document.getElementById('input-meal-text').value;
+            const calories = parseFloat(document.getElementById('input-calories').value) || 0;
+            const carbs = parseFloat(document.getElementById('input-carbs').value) || 0;
+            const salt = parseFloat(document.getElementById('input-salt').value) || 0;
+
+            const existingIndex = records.findIndex(r => r.date === date);
+            const recordData = { date, bpSys, bpDia, weight, steps, medication, mealText, calories, carbs, salt };
+
+            if (existingIndex >= 0) {
+                records[existingIndex] = recordData;
+            } else {
+                records.push(recordData);
+            }
+
+            saveRecords();
+            updateAllViews();
+
+            alert(`${date} の健康記録を正常に更新しました！`);
+        }
+
+        // --- Simulated AI Nutrient Estimation ---
+        function estimateNutrientsWithAI() {
+            const mealText = document.getElementById('input-meal-text').value;
+            if (!mealText.trim()) {
+                alert('食事内容メモに料理名や食材を入力してからAI試算を押してください。(例: ウインナー、ラーメン、おにぎり)');
+                return;
+            }
+
+            let estCal = 400;
+            let estCarbs = 40;
+            let estSalt = 1.5;
+
+            const text = mealText.toLowerCase();
+
+            // Simple rules for smart estimation
+            if (text.includes('ウインナー') || text.includes('ソーセージ') || text.includes('ハム')) {
+                estSalt += 1.5; estCal += 200;
+            }
+            if (text.includes('おにぎり') || text.includes('ご飯') || text.includes('白米')) {
+                estCarbs += 40; estCal += 180; estSalt += 0.5;
+            }
+            if (text.includes('チューハイ') || text.includes('酒') || text.includes('ビール')) {
+                estCal += 350; estCarbs += 25; estSalt += 0.3;
+            }
+            if (text.includes('ラーメン') || text.includes('うどん') || text.includes('スープ')) {
+                estSalt += 3.5; estCal += 450; estCarbs += 55;
+            }
+            if (text.includes('醤油') || text.includes('ポン酢') || text.includes('漬物')) {
+                estSalt += 1.8;
+            }
+            if (text.includes('ゆで卵') || text.includes('豆腐') || text.includes('納豆')) {
+                estCal += 100; estCarbs += 2; estSalt += 0.2;
+            }
+
+            document.getElementById('input-calories').value = Math.round(estCal);
+            document.getElementById('input-carbs').value = estCarbs.toFixed(1);
+            document.getElementById('input-salt').value = estSalt.toFixed(1);
+
+            alert(`AI栄養推計が完了しました！\n推計塩分: ${estSalt.toFixed(1)}g / 糖質: ${estCarbs.toFixed(1)}g / カロリー: ${Math.round(estCal)}kcal`);
+        }
+
+        // --- Render Log Table ---
+        function renderTable() {
+            const tbody = document.getElementById('historyTableBody');
+            tbody.innerHTML = '';
+
+            document.getElementById('log-count-badge').innerText = `${records.length} 件`;
+
+            const sortedDesc = [...records].reverse();
+
+            sortedDesc.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition border-b border-slate-100';
+
+                const saltBadgeClass = r.salt >= 6.0 
+                    ? 'bg-red-100 text-red-700 font-bold' 
+                    : 'bg-emerald-100 text-emerald-700';
+
+                const diaBadgeClass = r.bpDia >= 100 
+                    ? 'text-red-600 font-bold' 
+                    : 'text-slate-800';
+
+                tr.innerHTML = `
+                    <td class="px-3 py-2.5 font-medium text-slate-900">${r.date}</td>
+                    <td class="px-3 py-2.5 ${diaBadgeClass}">${r.bpSys} / ${r.bpDia} mmHg</td>
+                    <td class="px-3 py-2.5 font-semibold text-slate-800">${r.weight.toFixed(1)} kg</td>
+                    <td class="px-3 py-2.5">
+                        <span class="px-2 py-0.5 rounded text-xs ${saltBadgeClass}">${r.salt.toFixed(1)} g</span>
+                    </td>
+                    <td class="px-3 py-2.5 text-slate-500">${r.calories} kcal / ${r.carbs}g</td>
+                    <td class="px-3 py-2.5 text-slate-600 max-w-xs truncate">${r.mealText || '-'}</td>
+                    <td class="px-3 py-2.5">${r.medication ? '✅ 服用' : '❌ 未'}</td>
+                    <td class="px-3 py-2.5 text-right space-x-1">
+                        <button onclick="editRecord('${r.date}')" class="p-1 text-slate-500 hover:text-brand-600">
+                            <i class="fa-solid fa-pen"></i>
+                        </button>
+                        <button onclick="deleteRecord('${r.date}')" class="p-1 text-slate-500 hover:text-red-600">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function editRecord(dateStr) {
+            const r = records.find(rec => rec.date === dateStr);
+            if (!r) return;
+
+            document.getElementById('input-date').value = r.date;
+            document.getElementById('input-bp-sys').value = r.bpSys;
+            document.getElementById('input-bp-dia').value = r.bpDia;
+            document.getElementById('input-weight').value = r.weight;
+            document.getElementById('input-steps').value = r.steps;
+            document.getElementById('input-med').checked = r.medication;
+            document.getElementById('input-meal-text').value = r.mealText || '';
+            document.getElementById('input-calories').value = r.calories;
+            document.getElementById('input-carbs').value = r.carbs;
+            document.getElementById('input-salt').value = r.salt;
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function deleteRecord(dateStr) {
+            if (!confirm(`${dateStr} の記録を削除してもよろしいですか？`)) return;
+            records = records.filter(r => r.date !== dateStr);
+            saveRecords();
+            updateAllViews();
+        }
+
+        // --- CSV Import / Export Engine ---
+        function exportDataCSV() {
+            if (records.length === 0) {
+                alert('出力するデータがありません。');
+                return;
+            }
+
+            let csv = 'Date,BP_Sys,BP_Dia,Weight,Steps,Medication,Calories,Carbs,Salt,MealText\n';
+            records.forEach(r => {
+                const escapedMeal = `"${(r.mealText || '').replace(/"/g, '""')}"`;
+                csv += `${r.date},${r.bpSys},${r.bpDia},${r.weight},${r.steps},${r.medication},${r.calories},${r.carbs},${r.salt},${escapedMeal}\n`;
+            });
+
+            const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Health_Dashboard_Export_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        }
+
+        function importDataCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const lines = text.split('\n');
+                let count = 0;
+
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+
+                    const cols = line.split(',');
+                    if (cols.length >= 9) {
+                        const date = cols[0].trim();
+                        const bpSys = parseFloat(cols[1]) || 120;
+                        const bpDia = parseFloat(cols[2]) || 80;
+                        const weight = parseFloat(cols[3]) || 80;
+                        const steps = parseInt(cols[4]) || 0;
+                        const medication = cols[5] === 'true';
+                        const calories = parseFloat(cols[6]) || 0;
+                        const carbs = parseFloat(cols[7]) || 0;
+                        const salt = parseFloat(cols[8]) || 0;
+                        const mealText = cols[9] ? cols[9].replace(/^"|"$/g, '') : '';
+
+                        const index = records.findIndex(r => r.date === date);
+                        const rec = { date, bpSys, bpDia, weight, steps, medication, calories, carbs, salt, mealText };
+
+                        if (index >= 0) {
+                            records[index] = rec;
+                        } else {
+                            records.push(rec);
+                        }
+                        count++;
+                    }
+                }
+
+                saveRecords();
+                updateAllViews();
+                alert(`${count} 件のデータを正常にインポートしました！`);
+            };
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>

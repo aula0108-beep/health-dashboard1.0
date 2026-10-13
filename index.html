@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>減量＆血圧コントロールAI</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary: #2563eb;
@@ -18,4 +17,398 @@
             --border: #334155;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { background: var(--bg); color: var(--text); padding: 12px;
+        body { background: var(--bg); color: var(--text); padding: 12px; max-width: 600px; margin: 0 auto; padding-bottom: 60px; }
+        
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; background: var(--card); padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border); }
+        .logo-area { display: flex; align-items: center; gap: 8px; }
+        .logo-icon { font-size: 1.4rem; background: var(--primary); padding: 6px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+        h1 { font-size: 1rem; color: var(--text); font-weight: bold; }
+        .subtitle { font-size: 0.75rem; color: var(--text-light); }
+        .header-btns { display: flex; gap: 8px; }
+        .icon-btn { background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; cursor: pointer; text-decoration: none; }
+
+        .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+        .metric-card { background: var(--card); border-radius: 14px; padding: 14px; border: 1px solid var(--border); position: relative; overflow: hidden; }
+        .metric-card.alert { border-color: var(--danger); background: linear-gradient(135deg, #1e293b, #450a0a); }
+        .metric-title { font-size: 0.75rem; color: var(--text-light); margin-bottom: 4px; }
+        .metric-value { font-size: 1.5rem; font-weight: bold; letter-spacing: -0.5px; }
+        .metric-unit { font-size: 0.8rem; font-weight: normal; color: var(--text-light); }
+        .metric-sub { font-size: 0.7rem; margin-top: 4px; }
+
+        .card { background: var(--card); border-radius: 14px; padding: 16px; margin-bottom: 14px; border: 1px solid var(--border); }
+        .card h2 { font-size: 0.9rem; margin-bottom: 12px; color: var(--text-light); border-bottom: 1px solid var(--border); padding-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+        label { display: block; font-size: 0.75rem; color: var(--text-light); margin-bottom: 4px; }
+        input, select, textarea { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; background: #0f172a; color: var(--text); }
+        input:focus, textarea:focus { outline: none; border-color: var(--primary); }
+
+        button { width: 100%; background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 0.95rem; font-weight: bold; cursor: pointer; margin-top: 8px; }
+        button:active { opacity: 0.8; }
+        button.secondary { background: #334155; color: var(--text); }
+        button.ai-btn { background: linear-gradient(135deg, #6366f1, #a855f7); }
+
+        .mode-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+        .mode-tab { flex: 1; padding: 8px; text-align: center; background: #0f172a; border: 1px solid var(--border); border-radius: 8px; font-size: 0.8rem; color: var(--text-light); cursor: pointer; font-weight: bold; }
+        .mode-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
+        .history-item:last-child { border-bottom: none; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; z-index: 1000; padding: 16px; }
+        .modal-content { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 14px; width: 100%; max-width: 400px; }
+        
+        .loading { display: none; text-align: center; color: #a855f7; font-weight: bold; margin-top: 8px; font-size: 0.85rem; }
+        #preview-container { margin-top: 8px; text-align: center; display: none; }
+        #preview-img { max-height: 140px; border-radius: 8px; border: 1px solid var(--border); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-area">
+            <div class="logo-icon">🫀</div>
+            <div>
+                <h1>減量＆血圧コントロールAI</h1>
+                <div class="subtitle">目標: 4ヶ月で -10kg & 拡張期 100mmHg 未満</div>
+            </div>
+        </div>
+        <div class="header-btns">
+            <button class="icon-btn" onclick="exportCSV()" title="CSV出力">📥</button>
+            <button class="icon-btn" onclick="document.getElementById('settings-modal').style.display='flex';" title="設定">⚙️</button>
+        </div>
+    </header>
+
+    <!-- ダッシュボード・ステータス -->
+    <div class="dashboard-grid">
+        <div class="metric-card alert">
+            <div class="metric-title">最新 血圧</div>
+            <div class="metric-value" id="dash-bp">147 / <span style="color:#f87171;">108</span> <span class="metric-unit">mmHg</span></div>
+            <div class="metric-sub" style="color: #f87171;">⚠️ 拡張期 100mmHg 超え</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">最新 体重</div>
+            <div class="metric-value" id="dash-weight">80.2 <span class="metric-unit">kg</span></div>
+            <div class="metric-sub" style="color: var(--text-light);" id="dash-diff">目標 70.8 kg (-10kg)</div>
+        </div>
+    </div>
+
+    <!-- AIリアルタイム診断 -->
+    <div class="card" style="background: linear-gradient(135deg, #1e293b, #0f172a); border-color: #3b82f6;">
+        <h2 style="border-color: #3b82f6; color: #60a5fa;">🤖 AIリアルタイム診断</h2>
+        <p id="ai-advice" style="font-size: 0.85rem; line-height: 1.5; color: #e2e8f0;">
+            直近の拡張期血圧が 108 mmHg です。血管への負担が大きい状態が続いています。スピロノラクトンの服用を確実に行い、減量と水分補給で排泄を高めましょう。
+        </p>
+    </div>
+
+    <!-- 身体測定記録 -->
+    <div class="card">
+        <h2>📊 本日の身体測定の記録</h2>
+        <div class="grid-3">
+            <div>
+                <label>体重 (kg)</label>
+                <input type="number" id="input-weight" step="0.1" placeholder="80.2">
+            </div>
+            <div>
+                <label>収縮期 (上)</label>
+                <input type="number" id="input-sys" placeholder="147">
+            </div>
+            <div>
+                <label>拡張期 (下)</label>
+                <input type="number" id="input-dia" placeholder="108">
+            </div>
+        </div>
+        <button onclick="saveHealthData()">測定データを保存</button>
+    </div>
+
+    <!-- 食事記録（選択式：テキスト or 写真） -->
+    <div class="card">
+        <h2>🍱 食事の記録（AI分析）</h2>
+        
+        <div class="mode-tabs">
+            <div id="tab-text" class="mode-tab active" onclick="switchInputMode('text')">📝 1. テキストで入力</div>
+            <div id="tab-photo" class="mode-tab" onclick="switchInputMode('photo')">📸 2. 写真＋コメント</div>
+        </div>
+
+        <div id="area-text" style="margin-bottom: 10px;">
+            <label>食べたものをざっくり入力</label>
+            <input type="text" id="meal-text" placeholder="例：カツ丼、コンビニのサンドイッチとサラダ 等">
+        </div>
+
+        <div id="area-photo" style="margin-bottom: 10px; display: none;">
+            <div style="margin-bottom: 8px;">
+                <label>食事の写真（撮影またはライブラリから選択）</label>
+                <input type="file" id="meal-image" accept="image/*" onchange="previewImage(event)">
+                <div id="preview-container">
+                    <img id="preview-img" src="" alt="プレビュー">
+                </div>
+            </div>
+            <div>
+                <label>補足コメント（例：ご飯半分、汁物は残した等）</label>
+                <textarea id="meal-comment" rows="2" placeholder="メモを入力..."></textarea>
+            </div>
+        </div>
+
+        <button class="ai-btn" onclick="analyzeMealAI()">✨ AI分析してカロリー・塩分を記録</button>
+        <div id="ai-loading" class="loading">🤖 AIが食事を解析中...数秒お待ちください</div>
+    </div>
+
+    <!-- 履歴 -->
+    <div class="card">
+        <h2>📜 最近の記録</h2>
+        <div id="history-list">
+            <p style="font-size: 0.8rem; color: var(--text-light);">まだ記録がありません</p>
+        </div>
+    </div>
+
+    <!-- 設定モーダル -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content">
+            <h2>⚙️ API設定</h2>
+            <div style="margin: 12px 0;">
+                <label>Gemini API キー</label>
+                <input type="password" id="api-key-input" placeholder="AIzaSy...">
+                <p style="font-size: 0.7rem; color: var(--text-light); margin-top: 4px;">Google AI Studioで取得したキーを入力してください。</p>
+            </div>
+            <button onclick="saveSettings()">保存する</button>
+            <button class="secondary" onclick="document.getElementById('settings-modal').style.display='none';" style="margin-top: 6px;">閉じる</button>
+        </div>
+    </div>
+
+<script>
+    let healthData = JSON.parse(localStorage.getItem('health_data') || '[]');
+    let mealData = JSON.parse(localStorage.getItem('meal_data') || '[]');
+    let base64Image = null;
+    let currentMode = 'text';
+
+    window.onload = function() {
+        const savedKey = localStorage.getItem('gemini_api_key');
+        if (savedKey) {
+            document.getElementById('api-key-input').value = savedKey;
+        }
+        updateDashboard();
+        renderHistory();
+    };
+
+    function switchInputMode(mode) {
+        currentMode = mode;
+        const tabText = document.getElementById('tab-text');
+        const tabPhoto = document.getElementById('tab-photo');
+        const areaText = document.getElementById('area-text');
+        const areaPhoto = document.getElementById('area-photo');
+
+        if (mode === 'text') {
+            tabText.classList.add('active');
+            tabPhoto.classList.remove('active');
+            areaText.style.display = 'block';
+            areaPhoto.style.display = 'none';
+        } else {
+            tabPhoto.classList.add('active');
+            tabText.classList.remove('active');
+            areaPhoto.style.display = 'block';
+            areaText.style.display = 'none';
+        }
+    }
+
+    function saveSettings() {
+        const key = document.getElementById('api-key-input').value.trim();
+        localStorage.setItem('gemini_api_key', key);
+        alert('APIキーを保存しました！');
+        document.getElementById('settings-modal').style.display = 'none';
+    }
+
+    function previewImage(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                base64Image = e.target.result.split(',')[1];
+                document.getElementById('preview-img').src = e.target.result;
+                document.getElementById('preview-container').style.display = 'block';
+            }
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function saveHealthData() {
+        const weight = document.getElementById('input-weight').value;
+        const sys = document.getElementById('input-sys').value;
+        const dia = document.getElementById('input-dia').value;
+        
+        if (!weight && !sys) { alert('体重か血圧を入力してください'); return; }
+
+        const record = {
+            date: new Date().toLocaleDateString('ja-JP', {month: 'numeric', day: 'numeric', hour: '2-digit', minute:'2-digit'}),
+            weight: weight ? parseFloat(weight) : null,
+            sys: sys ? parseInt(sys) : null,
+            dia: dia ? parseInt(dia) : null,
+            type: 'health'
+        };
+
+        healthData.push(record);
+        localStorage.setItem('health_data', JSON.stringify(healthData));
+        
+        document.getElementById('input-weight').value = '';
+        document.getElementById('input-sys').value = '';
+        document.getElementById('input-dia').value = '';
+        
+        updateDashboard();
+        renderHistory();
+        alert('測定データを保存しました！');
+    }
+
+    async function analyzeMealAI() {
+        try {
+            const apiKey = localStorage.getItem('gemini_api_key');
+            if (!apiKey) {
+                alert('⚠️ APIキーが未設定です。右上⚙️ボタンから Gemini APIキーを設定してください。');
+                document.getElementById('settings-modal').style.display = 'flex';
+                return;
+            }
+
+            let promptContent = "";
+            let contents = [];
+
+            if (currentMode === 'text') {
+                const textInput = document.getElementById('meal-text').value.trim();
+                if (!textInput) {
+                    alert('⚠️ 食べたものを入力してください。');
+                    return;
+                }
+                promptContent = `あなたは優秀な管理栄養士です。以下のテキストで入力された食事内容を分析し、推定されるカロリー・糖質・塩分を計算してください。以下のJSON形式のみで数値を返してください。マークダウンのバッククォート(```jsonなど)は一切含めず、純粋なJSON文字列だけを返してください。
+{
+  "menuName": "料理名（簡単な説明）",
+  "calories": カロリー数値（整数）,
+  "carbs": 糖質数値（g・小数第一位まで）,
+  "salt": 塩分数値（g・小数第一位まで）
+}
+食事内容: ${textInput}`;
+                contents = [{ parts: [{ text: promptContent }] }];
+
+            } else {
+                const comment = document.getElementById('meal-comment').value;
+                if (!base64Image && !comment) {
+                    alert('⚠️ 写真を選択するか、コメントを入力してください。');
+                    return;
+                }
+                promptContent = `あなたは優秀な管理栄養士です。提供された食事の写真とコメントを分析し、以下のJSON形式のみで数値を返してください。マークダウンのバッククォート(```jsonなど)は一切含めず、純粋なJSON文字列だけを返してください。
+{
+  "menuName": "料理名（簡単な説明）",
+  "calories": カロリー数値（整数）,
+  "carbs": 糖質数値（g・小数第一位まで）,
+  "salt": 塩分数値（g・小数第一位まで）
+}
+コメント: ${comment}`;
+
+                contents = [{ parts: [{ text: promptContent }] }];
+                if (base64Image) {
+                    contents.unshift({
+                        parts: [{
+                            inlineData: {
+                                mimeType: "image/jpeg",
+                                data: base64Image
+                            }
+                        }]
+                    });
+                }
+            }
+
+            document.getElementById('ai-loading').style.display = 'block';
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: contents })
+            });
+
+            const data = await response.json();
+            if (data.error) throw new Error(data.error.message);
+
+            const rawText = data.candidates[0].content.parts[0].text.trim();
+            const cleanText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+            const result = JSON.parse(cleanText);
+
+            const record = {
+                date: new Date().toLocaleDateString('ja-JP', {month: 'numeric', day: 'numeric', hour: '2-digit', minute:'2-digit'}),
+                name: result.menuName,
+                calories: result.calories,
+                carbs: result.carbs,
+                salt: result.salt,
+                type: 'meal'
+            };
+
+            mealData.push(record);
+            localStorage.setItem('meal_data', JSON.stringify(mealData));
+
+            document.getElementById('meal-text').value = '';
+            document.getElementById('meal-comment').value = '';
+            document.getElementById('meal-image').value = '';
+            document.getElementById('preview-container').style.display = 'none';
+            base64Image = null;
+
+            renderHistory();
+            alert(`【AI分析完了】\n${result.name}\n🔥 ${result.calories} kcal | 🧂 塩分 ${result.salt}g`);
+
+        } catch (error) {
+            console.error(error);
+            alert('AI解析エラー: ' + error.message);
+        } finally {
+            document.getElementById('ai-loading').style.display = 'none';
+        }
+    }
+
+    function updateDashboard() {
+        if (healthData.length > 0) {
+            const latest = healthData[healthData.length - 1];
+            if (latest.sys && latest.dia) {
+                document.getElementById('dash-bp').innerHTML = `${latest.sys} / <span style="color:#f87171;">${latest.dia}</span> <span class="metric-unit">mmHg</span>`;
+            }
+            if (latest.weight) {
+                document.getElementById('dash-weight').innerHTML = `${latest.weight} <span class="metric-unit">kg</span>`;
+                const diff = (latest.weight - 70.8).toFixed(1);
+                document.getElementById('dash-diff').innerText = `目標 70.8 kg (${diff > 0 ? '+'+diff : diff}kg)`;
+            }
+        }
+    }
+
+    function renderHistory() {
+        const container = document.getElementById('history-list');
+        const allData = [...healthData.map(d=>({...d, category:'health'})), ...mealData.map(d=>({...d, category:'meal'}))];
+        
+        if (allData.length === 0) {
+            container.innerHTML = '<p style="font-size: 0.8rem; color: var(--text-light);">まだ記録がありません</p>';
+            return;
+        }
+
+        allData.reverse();
+        let html = '';
+        allData.slice(0, 10).forEach(item => {
+            if (item.category === 'health') {
+                html += `<div class="history-item">
+                    <span>📅 ${item.date} [測定]</span>
+                    <span>体重: <b>${item.weight ? item.weight+'kg' : '-'}</b> / 血圧: <b>${item.sys && item.dia ? item.sys+'/'+item.dia : '-'}</b></span>
+                </div>`;
+            } else {
+                html += `<div class="history-item">
+                    <span>📅 ${item.date} [食事: ${item.name}]</span>
+                    <span style="color:#60a5fa;">🔥${item.calories}kcal 🧂塩分${item.salt}g</span>
+                </div>`;
+            }
+        });
+        container.innerHTML = html;
+    }
+
+    function exportCSV() {
+        let csv = '日時,種別,体重(kg),収縮期,拡張期,食事メニュー,カロリー,糖質(g),塩分(g)\n';
+        healthData.forEach(d => { csv += `"${d.date}","測定","${d.weight||''}","${d.sys||''}","${d.dia||''}","","","",""\n`; });
+        mealData.forEach(d => { csv += `"${d.date}","食事","","","","${d.name||''}","${d.calories||''}","${d.carbs||''}","${d.salt||''}"\n`; });
+
+        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'health_data.csv'; a.click();
+    }
+</script>
+
+</body>
+</html>

@@ -73,7 +73,8 @@
         </div>
         <div class="header-btns">
             <button class="icon-btn" onclick="exportCSV()" title="CSV出力">📥</button>
-            <button class="icon-btn" onclick="openSettingsModal()" title="設定">⚙️</button>
+            <!-- 関数を使わず直接モーダルを開く処理を記述（確実動作） -->
+            <button class="icon-btn" onclick="document.getElementById('settings-modal').style.display='flex';" title="設定">⚙️</button>
         </div>
     </header>
 
@@ -166,57 +167,31 @@
                 <p style="font-size: 0.7rem; color: var(--text-light); margin-top: 4px;">Google AI Studioで取得したキーを入力してください。</p>
             </div>
             <button onclick="saveSettings()">保存する</button>
-            <button class="secondary" onclick="closeSettingsModal()" style="margin-top: 6px;">閉じる</button>
+            <button class="secondary" onclick="document.getElementById('settings-modal').style.display='none';" style="margin-top: 6px;">閉じる</button>
         </div>
     </div>
 
 <script>
-    // グローバルエラーキャッチ（スマホ上で何かエラーが起きたらアラートを出す）
-    window.onerror = function(msg, url, line) {
-        alert("JSエラー発生: " + msg + " (行: " + line + ")");
-    };
-
     let healthData = JSON.parse(localStorage.getItem('health_data') || '[]');
     let mealData = JSON.parse(localStorage.getItem('meal_data') || '[]');
     let chartInstance = null;
     let base64Image = null;
 
     window.onload = function() {
-        try {
-            const savedKey = localStorage.getItem('gemini_api_key');
-            if (savedKey) {
-                document.getElementById('api-key-input').value = savedKey;
-            }
-            updateDashboard();
-            updateChart('weight');
-            renderHistory();
-        } catch (e) {
-            alert("初期化エラー: " + e.message);
+        const savedKey = localStorage.getItem('gemini_api_key');
+        if (savedKey) {
+            document.getElementById('api-key-input').value = savedKey;
         }
+        updateDashboard();
+        updateChart('weight');
+        renderHistory();
     };
-
-    function openSettingsModal() {
-        try {
-            const modal = document.getElementById('settings-modal');
-            if(modal) {
-                modal.style.display = 'flex';
-            } else {
-                alert('設定モーダルが見つかりません');
-            }
-        } catch (e) {
-            alert('設定を開く際にエラー: ' + e.message);
-        }
-    }
-
-    function closeSettingsModal() {
-        document.getElementById('settings-modal').style.display = 'none';
-    }
 
     function saveSettings() {
         const key = document.getElementById('api-key-input').value.trim();
         localStorage.setItem('gemini_api_key', key);
         alert('APIキーを保存しました！');
-        closeSettingsModal();
+        document.getElementById('settings-modal').style.display = 'none';
     }
 
     function previewImage(event) {
@@ -265,7 +240,7 @@
             const apiKey = localStorage.getItem('gemini_api_key');
             if (!apiKey) {
                 alert('⚠️ APIキーが未設定です。右上⚙️ボタンから Gemini APIキーを設定してください。');
-                openSettingsModal();
+                document.getElementById('settings-modal').style.display = 'flex';
                 return;
             }
 
